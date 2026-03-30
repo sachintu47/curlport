@@ -1,6 +1,6 @@
 diff --git a/tests/data/test4007 b/tests/data/test4007
 new file mode 100644
-index 0000000..160e9e6
+index 0000000..70efc59
 --- /dev/null
 +++ b/tests/data/test4007
 @@ -0,0 +1,57 @@
@@ -50,7 +50,7 @@ index 0000000..160e9e6
 +# Verify data after the test has been "shot"
 +<verify>
 +<postcheck>
-+ls -T %LOGDIR/curl%TESTNUMBER.out | grep "binary"
++ls -T %LOGDIR/curl%TESTNUMBER.out | grep "^b "
 +</postcheck>
 +<protocol crlf="headers">
 +GET /%TESTNUMBER HTTP/1.1

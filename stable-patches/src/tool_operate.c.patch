@@ -1,5 +1,5 @@
 diff --git a/src/tool_operate.c b/src/tool_operate.c
-index 4bc98a1..fa27c65 100644
+index 4bc98a1..97434e9 100644
 --- a/src/tool_operate.c
 +++ b/src/tool_operate.c
 @@ -23,6 +23,15 @@
@@ -98,30 +98,29 @@ index 4bc98a1..fa27c65 100644
      }
    }
  
-@@ -712,6 +764,22 @@ static CURLcode post_per_transfer(struct per_transfer *per,
- 
+@@ -713,6 +765,21 @@ static CURLcode post_per_transfer(struct per_transfer *per,
    /* Close the outs file */
    if(outs->fopened && outs->stream) {
+     rc = curlx_fclose(outs->stream);
 +#ifdef __MVS__
 +    if(config->local_ccsid && outs->s_isreg) {
-+      /* Final tagging before close to ensure it sticks.
-+         Using fchattr via the file descriptor ensures user intent wins. */
-+      int fd = fileno(outs->stream);
-+      attrib_t attr;
-+      memset(&attr, 0, sizeof(attr));
-+      attr.att_filetagchg = 1;
-+      if(config->local_ccsid == 65535)
-+        attr.att_filetag.ft_ccsid = FT_BINARY;
-+      else
-+        attr.att_filetag.ft_ccsid = (int)config->local_ccsid;
-+      attr.att_filetag.ft_txtflag = (attr.att_filetag.ft_ccsid == FT_BINARY) ? 0 : 1;
-+      __fchattr(fd, &attr, sizeof(attr));
++      /* Final tagging override.
++         The z/OS C runtime (LE) auto-tags untagged files as ISO8859-1 on close.
++         We re-open the file briefly to force the user's requested tag. */
++      int fd = open(outs->filename, O_RDWR | CURL_O_BINARY);
++      if(fd >= 0) {
++        if(config->local_ccsid == 65535)
++          __chgfdccsid(fd, FT_BINARY);
++        else
++          __chgfdccsid(fd, (int)config->local_ccsid);
++        close(fd);
++      }
 +    }
 +#endif
-     rc = curlx_fclose(outs->stream);
      if(!result && rc) {
        /* something went wrong in the writing process */
-@@ -763,6 +831,14 @@ skip:
+       result = CURLE_WRITE_ERROR;
+@@ -763,6 +830,14 @@ skip:
    curlx_free(per->url);
    curlx_free(per->outfile);
    curlx_free(per->uploadfile);
@@ -136,7 +135,7 @@ index 4bc98a1..fa27c65 100644
    curl_slist_free_all(per->hdrcbdata.headlist);
    per->hdrcbdata.headlist = NULL;
    return result;
-@@ -1055,12 +1131,23 @@ static CURLcode setup_outfile(struct OperationConfig *config,
+@@ -1055,12 +1130,23 @@ static CURLcode setup_outfile(struct OperationConfig *config,
                               "ctx=stm", "rfm=stmlf", "rat=cr", "mrs=0");
  #else
      /* open file for output: */
@@ -160,7 +159,7 @@ index 4bc98a1..fa27c65 100644
      outs->fopened = TRUE;
      outs->stream = file;
      outs->init = config->resume_from;
-@@ -1260,7 +1347,35 @@ static CURLcode single_transfer(struct OperationConfig *config,
+@@ -1260,7 +1346,35 @@ static CURLcode single_transfer(struct OperationConfig *config,
          curl_easy_cleanup(curl);
          return CURLE_FAILED_INIT;
        }
@@ -179,7 +178,7 @@ index 4bc98a1..fa27c65 100644
 +        }
 +      }
 +#endif
-+    }
+     }
 +#ifdef __MVS__
 +    /* Initialize encoding context for download */
 +    if(config->download_encoding) {
@@ -191,12 +190,12 @@ index 4bc98a1..fa27c65 100644
 +          per->encoding_ctx = NULL;
 +        }
 +      }
-     }
++    }
 +#endif
      per->config = config;
      per->curl = curl;
      per->urlnum = u->num;
-@@ -2348,3 +2463,197 @@ CURLcode operate(int argc, argv_item_t argv[])
+@@ -2348,3 +2462,197 @@ CURLcode operate(int argc, argv_item_t argv[])
  
    return result;
  }
